@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Things Done — Anti-Procrastination Tool</title>
+    <meta name="description" content="The anti-procrastination tool for solo builders tackling hard projects.">
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiR2V0IFRoaW5ncyBEb25lIiwic2hvcnRfbmFtZSI6IkdURCIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjMDYwZDE4IiwidGhlbWVfY29sb3IiOiIjNjBhNWZhIn0=">
+    <meta name="theme-color" content="#60a5fa">
+
+    <style>
+        /* =============================================================
+         * GET THINGS DONE — v1.1
+         * Fixes in this build:
+         * - Header: centered logo+title, more top padding, centered quote,
+         *   extra space between logo and quote
+         * - Mobile card: drag handle + checkbox + title all inline on one row
+         * - Drag only activates from drag-handle icon; text inputs are
+         *   draggable=false so copy/paste works without triggering card move
+         * ============================================================= */
+
+        :root {
+            --bg-base:     #060d18;
+            --card-bg:     rgba(13, 25, 50, 0.88);
+            --card-border: rgba(96, 165, 250, 0.09);
+            --card-shadow: 0 4px 28px rgba(0,0,0,0.5), 0 1px 0 rgba(96,165,250,0.07) inset;
+            --blue:        #60a5fa;
+            --violet:      #a78bfa;
+            --amber:       #fbbf24;
+            --text-1:      #f1f5f9;
+            --text-2:      #94a3b8;
+            --text-3:      #64748b;
+            --ease:        cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-1);
+            min-height: 100vh;
+            padding: 0 1rem 3rem;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Living background — two orb layers */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                radial-gradient(ellipse 75% 55% at 15% 15%, rgba(37,99,235,0.22) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 85% 85%, rgba(124,58,237,0.18) 0%, transparent 55%),
+                radial-gradient(ellipse 50% 40% at 55% 45%, rgba(16,185,129,0.07) 0%, transparent 50%);
+            animation: orb-a 20s ease-in-out infinite alternate;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                radial-gradient(ellipse 65% 50% at 80% 10%, rgba(96,165,250,0.12) 0%, transparent 55%),
+                radial-gradient(ellipse 55% 45% at 20% 85%, rgba(167,139,250,0.12) 0%, transparent 50%);
+            animation: orb-b 27s ease-in-out infinite alternate;
+        }
+
+        @keyframes orb-a {
+            0%   { opacity: 0.6;  transform: scale(1)    translate(0,    0); }
+            50%  { opacity: 1;    transform: scale(1.06) translate(1.5%, 2%); }
+            100% { opacity: 0.75; transform: scale(0.97) translate(-1%, -1.5%); }
+        }
+        @keyframes orb-b {
+            0%   { opacity: 0.45; transform: scale(1)    translate(0, 0); }
+            50%  { opacity: 0.85; transform: scale(1.05) translate(-2%, 1.5%); }
+            100% { opacity: 0.55; transform: scale(1.02) translate(1.5%, -2%); }
+        }
+
+        .grain {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            background-size: 160px 160px;
+        }
+
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* ── HEADER — centered ──────────────────────────────────────── */
+        header {
+            padding-top: 2.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1.25rem; /* space between logo row and quote */
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(110deg, #60a5fa 0%, #a78bfa 45%, #60a5fa 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmer 7s linear infinite;
+        }
+
+        @keyframes shimmer {
+            0%   { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+
+        .icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            color: var(--blue);
+            animation: icon-glow 4s ease-in-out infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes icon-glow {
+            0%, 100% { filter: drop-shadow(0 0 4px rgba(96,165,250,0.4)); }
+            50%       { filter: drop-shadow(0 0 14px rgba(96,165,250,0.85)); }
+        }
+
+        .quote {
+            color: var(--text-2);
+            font-style: italic;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+            line-height: 1.55;
+            opacity: 0;
+            animation: fade-up 1s var(--ease) 0.25s forwards;
+            text-align: center;
+        }
+
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .stats {
+            display: flex;
+            gap: 0.625rem;
+            font-size: 0.875rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .stat {
+            background: rgba(13, 25, 50, 0.65);
+            border: 1px solid rgba(96,165,250,0.1);
+            padding: 0.375rem 0.875rem;
+            border-radius: 2rem;
+            backdrop-filter: blur(8px);
+        }
+
+        .stat-label { color: var(--text-3); }
+        .stat-value { font-weight: 600; transition: color 200ms ease; }
+        .stat-value.flash { color: var(--blue); }
+
+        /* ── SPRINT CARDS ───────────────────────────────────────────── */
+        .sprints-list { margin-bottom: 1.25rem; }
+
+        .sprint-item {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 0.875rem;
+            padding: 0.875rem 1rem;
+            margin-bottom: 0.5rem;
+            box-shadow: var(--card-shadow);
+            backdrop-filter: blur(16px);
+            /* NOTE: draggable is set on the element but drag only fires
+               from the handle; inputs suppress drag to allow copy/paste */
+            cursor: default;
+            transition:
+                background 200ms ease,
+                box-shadow 200ms ease,
+                border-color 200ms ease;
+            animation: card-in 300ms var(--ease) both;
+        }
+
+        @keyframes card-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .sprint-item:hover {
+            background: rgba(18, 35, 65, 0.94);
+            border-color: rgba(96,165,250,0.2);
+            box-shadow:
+                0 8px 36px rgba(0,0,0,0.55),
+                0 0 0 1px rgba(96,165,250,0.12),
+                0 1px 0 rgba(96,165,250,0.08) inset;
+        }
+
+        .sprint-item.dragging {
+            opacity: 0.72;
+            transform: scale(1.025) rotate(0.4deg);
+            box-shadow: 0 16px 48px rgba(0,0,0,0.65), 0 0 0 2px rgba(96,165,250,0.35);
+            cursor: grabbing;
+        }
+
+        .sprint-item.drag-over {
+            border-top: 2px solid var(--blue);
+            box-shadow: 0 -2px 16px rgba(96,165,250,0.18), var(--card-shadow);
+        }
+
+        .sprint-item.completed { opacity: 0.5; }
+
+        /* ── CARD INNER LAYOUT ──────────────────────────────────────── */
+
+        /* Top row: handle | checkbox | title — always inline */
+        .sprint-top-row {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+            width: 100%;
+        }
+
+        /* Drag handle — the ONLY drag trigger */
+        .drag-handle {
+            color: var(--text-3);
+            cursor: grab;
+            flex-shrink: 0;
+            transition: color 150ms ease;
+            padding: 4px 2px;
+            /* Prevent handle itself from being a text target */
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        .drag-handle:hover { color: var(--text-2); }
+        .drag-handle:active { cursor: grabbing; }
+
+        .checkbox {
+            width: 1.125rem;
+            height: 1.125rem;
+            cursor: pointer;
+            accent-color: var(--blue);
+            flex-shrink: 0;
+        }
+
+        /* Title input — fills remaining space in top row */
+        .sprint-input {
+            flex: 1;
+            min-width: 0;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid transparent;
+            outline: none;
+            color: var(--text-1);
+            font-size: 1rem;
+            font-family: inherit;
+            line-height: 1.4;
+            transition: border-color 150ms ease;
+            /* CRITICAL: suppress drag on input so text selection works */
+            draggable: false;
+            -webkit-user-drag: none;
+            cursor: text;
+        }
+        .sprint-input:focus        { border-bottom-color: var(--blue); }
+        .sprint-input::placeholder { color: var(--text-3); }
+        .sprint-input.completed    { text-decoration: line-through; color: var(--text-3); }
+
+        /* Char counter sits after the input */
+        .char-counter {
+            font-size: 0.6875rem;
+            color: var(--text-3);
+            white-space: nowrap;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 200ms ease, color 150ms ease;
+        }
+        .char-counter.visible { opacity: 1; }
+        .char-counter.warning { color: var(--amber); }
+        .char-counter.danger  { color: #f87171; }
+
+        /* Bottom row: hours | deferral badge | spacer | action buttons */
+        .sprint-bottom-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            /* indent to align under title (skip handle + checkbox width) */
+            padding-left: calc(18px + 1.125rem + 1.25rem); /* handle + checkbox + gaps */
+            flex-wrap: wrap;
+        }
+
+        .duration-input {
+            width: 4.5rem;
+            background: rgba(6,13,24,0.55);
+            border: 1px solid rgba(71,85,105,0.45);
+            border-radius: 0.375rem;
+            padding: 0.2rem 0.45rem;
+            color: var(--text-1);
+            font-size: 0.8rem;
+            font-family: inherit;
+            transition: border-color 150ms ease;
+            /* suppress drag on input */
+            -webkit-user-drag: none;
+            cursor: text;
+        }
+        .duration-input:focus { outline: none; border-color: var(--blue); }
+
+        .hours-label { color: var(--text-3); font-size: 0.8rem; }
+
+        .deferral-badge {
+            background: rgba(251,191,36,0.1);
+            color: var(--amber);
+            padding: 0.15rem 0.45rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Push action buttons to the right */
+        .sprint-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 0.375rem;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .btn-notes-toggle {
+            background: transparent;
+            border: 1px solid rgba(96,165,250,0.15);
+            border-radius: 0.375rem;
+            color: var(--text-3);
+            cursor: pointer;
+            padding: 0.28rem 0.5rem;
+            font-size: 0.7rem;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            transition: all 150ms ease;
+            white-space: nowrap;
+        }
+        .btn-notes-toggle:hover {
+            color: var(--blue);
+            border-color: rgba(96,165,250,0.35);
+            background: rgba(96,165,250,0.06);
+            transform: translateY(-1px);
+        }
+        .btn-notes-toggle.has-notes {
+            color: var(--blue);
+            border-color: rgba(96,165,250,0.3);
+        }
+
+        /* Notes panel */
+        .notes-panel {
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 300ms var(--ease), opacity 220ms ease;
+        }
+        .notes-panel.open { max-height: 220px; opacity: 1; }
+
+        .notes-textarea {
+            display: block;
+            width: 100%;
+            margin-top: 0.625rem;
+            background: rgba(4, 9, 20, 0.55);
+            border: 1px solid rgba(71,85,105,0.35);
+            border-radius: 0.5rem;
+            padding: 0.6rem 0.75rem;
+            color: var(--text-2);
+            font-size: 0.8125rem;
+            font-family: inherit;
+            line-height: 1.55;
+            resize: vertical;
+            min-height: 76px;
+            transition: border-color 150ms ease, color 150ms ease;
+            /* allow full text selection */
+            -webkit-user-drag: none;
+            cursor: text;
+        }
+        .notes-textarea:focus {
+            outline: none;
+            border-color: rgba(96,165,250,0.4);
+            color: var(--text-1);
+        }
+        .notes-textarea::placeholder { color: var(--text-3); }
+
+        /* ── GLOBAL BUTTONS ─────────────────────────────────────────── */
+        .btn {
+            padding: 0.4rem 0.875rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-family: inherit;
+            transition: background 200ms ease, transform 120ms ease, box-shadow 150ms ease;
+            white-space: nowrap;
+        }
+        .btn:hover  { transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+
+        .btn-defer {
+            background: rgba(51,65,85,0.65);
+            color: var(--text-1);
+            border: 1px solid rgba(71,85,105,0.4);
+        }
+        .btn-defer:hover { background: rgba(71,85,105,0.75); }
+
+        .btn-delete {
+            background: rgba(71,85,105,0.22);
+            color: var(--text-2);
+            border: 1px solid rgba(71,85,105,0.28);
+        }
+        .btn-delete:hover { background: rgba(71,85,105,0.42); color: var(--text-1); }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            padding: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1.125rem;
+            border-radius: 0.875rem;
+            font-size: 0.9375rem;
+            border: 1px solid rgba(96,165,250,0.2);
+            box-shadow: 0 4px 20px rgba(37,99,235,0.3);
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            box-shadow: 0 6px 28px rgba(37,99,235,0.45);
+        }
+
+        /* ── AI SECTION ─────────────────────────────────────────────── */
+        .ai-section {
+            background: rgba(8, 18, 38, 0.65);
+            border: 1px solid rgba(96,165,250,0.11);
+            border-radius: 0.875rem;
+            padding: 1rem;
+            backdrop-filter: blur(14px);
+            transition: border-color 200ms ease;
+        }
+        .ai-section:focus-within { border-color: rgba(96,165,250,0.25); }
+
+        .ai-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--blue);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: inherit;
+            font-size: 0.9375rem;
+            transition: color 150ms ease, transform 150ms ease;
+        }
+        .ai-toggle:hover { color: #93c5fd; transform: translateX(2px); }
+
+        .ai-chat { margin-top: 0.75rem; }
+
+        .ai-input {
+            width: 100%;
+            background: rgba(4,9,20,0.65);
+            border: 1px solid rgba(71,85,105,0.45);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: var(--text-1);
+            resize: none;
+            margin-bottom: 0.75rem;
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: border-color 150ms ease;
+            -webkit-user-drag: none;
+        }
+        .ai-input:focus { outline: none; border-color: rgba(96,165,250,0.5); }
+        .ai-input::placeholder { color: var(--text-3); }
+
+        .btn-ai {
+            width: 100%;
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+            padding: 0.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(167,139,250,0.2);
+            box-shadow: 0 4px 18px rgba(124,58,237,0.22);
+            font-size: 0.9rem;
+        }
+        .btn-ai:hover {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            box-shadow: 0 6px 26px rgba(124,58,237,0.42);
+        }
+        .btn-ai:disabled {
+            background: rgba(51,65,85,0.5);
+            color: var(--text-3);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        @keyframes gentle-pulse {
+            0%, 100% { opacity: 0.7; }
+            50%       { opacity: 1; }
+        }
+        .ai-thinking { animation: gentle-pulse 1.8s ease-in-out infinite; }
+
+        .loading-spinner {
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255,255,255,0.35);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.65s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── EMPTY STATE ────────────────────────────────────────────── */
+        .empty-state {
+            text-align: center;
+            padding: 3.5rem 1rem;
+            color: var(--text-2);
+        }
+        .empty-icon {
+            width: 3.5rem;
+            height: 3.5rem;
+            margin: 0 auto 1rem;
+            color: var(--text-3);
+            opacity: 0.55;
+        }
+        .empty-state p:first-of-type {
+            font-size: 1.0625rem;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+            color: var(--text-1);
+        }
+        .empty-state p:last-of-type { font-size: 0.875rem; color: var(--text-3); }
+
+        /* ── FOOTER ─────────────────────────────────────────────────── */
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: var(--text-3);
+            font-size: 0.8125rem;
+            letter-spacing: 0.02em;
+        }
+
+        .hidden { display: none; }
+
+        /* ── MOBILE ─────────────────────────────────────────────────── */
+        @media (max-width: 640px) {
+            body { padding: 0 0.75rem 2.5rem; }
+            h1   { font-size: 1.75rem; }
+            .icon { width: 2.25rem; height: 2.25rem; }
+
+            .sprint-item { padding: 0.75rem 0.875rem; }
+
+            /* Bottom row: on mobile, allow wrap but keep aligned */
+            .sprint-bottom-row {
+                padding-left: calc(18px + 1.125rem + 1.25rem);
+            }
+        }
+
+        @media (max-width: 380px) {
+            h1   { font-size: 1.5rem; }
+            .btn { font-size: 0.75rem; padding: 0.4rem 0.55rem; }
+            .sprint-bottom-row { padding-left: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="grain"></div>
+
+    <div class="container">
+        <header>
+            <div class="title">
+                <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                </svg>
+                <h1>Get Things Done</h1>
+            </div>
+            <p class="quote" id="quote"></p>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-label">Sprints: </span>
+                    <span class="stat-value" id="sprint-stats">0/0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Total time: </span>
+                    <span class="stat-value" id="time-stats">0h</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="sprints-list" id="sprints-container"></div>
+
+            <button class="btn btn-primary" onclick="app.addSprint()">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Sprint
+            </button>
+
+            <div class="ai-section">
+                <button class="ai-toggle" onclick="app.toggleAI()">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    Talk to your AI assistant
+                </button>
+                <div class="ai-chat hidden" id="ai-chat">
+                    <textarea class="ai-input" id="ai-input" rows="3"
+                        placeholder="Ask for help planning, breaking down tasks, or staying on track..."></textarea>
+                    <button class="btn btn-ai" onclick="app.sendAIMessage()" id="ai-button">
+                        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                        </svg>
+                        Get AI Advice
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Where hard work gets planned. And done.</p>
+        </footer>
+    </div>
+
+    <script>
+        const TITLE_LIMIT = 60;
+
+        const app = {
+            sprints: [],
+            draggedIndex: null,
+            openNotes: new Set(),
+
+            quotes: [
+                "The work you do while you procrastinate is probably the work you should be doing for the rest of your life. — Jessica Hische",
+                "Amateurs wait for inspiration. Professionals just do the work. — Steven Pressfield",
+                "The resistance is strongest closest to the thing that matters most. — Steven Pressfield",
+                "Hard work is not the thing everyone does when they run out of ideas. It's the only thing.",
+                "Don't talk about what you're going to do. Do it. Then talk about it.",
+                "Shipped beats perfect. Every time.",
+                "The project isn't hard. Starting it is hard. Start.",
+                "You don't have to see the whole staircase, just take the first step. — Martin Luther King Jr.",
+                "Most people overestimate what they can do in a day and underestimate what they can do in a year.",
+                "Build in public. Ship fast. Learn faster.",
+                "What you do today is what matters. Not what you plan to do someday.",
+                "Procrastination is the gap between intention and action. Close it tonight."
+            ],
+
+            init() {
+                this.loadFromStorage();
+                this.displayRandomQuote();
+                this.render();
+            },
+
+            loadFromStorage() {
+                const saved = localStorage.getItem('gtd_sprints');
+                if (saved) {
+                    this.sprints = JSON.parse(saved).map(s => ({ notes: '', ...s }));
+                }
+            },
+
+            saveToStorage() {
+                localStorage.setItem('gtd_sprints', JSON.stringify(this.sprints));
+            },
+
+            displayRandomQuote() {
+                const quote = this.quotes[Math.floor(Math.random() * this.quotes.length)];
+                const el = document.getElementById('quote');
+                el.style.animation = 'none';
+                void el.offsetHeight;
+                el.style.animation = '';
+                el.textContent = `"${quote}"`;
+            },
+
+            addSprint() {
+                this.sprints.push({ id: Date.now(), task: '', duration: '', completed: false, deferrals: 0, notes: '' });
+                this.saveToStorage();
+                this.render();
+                setTimeout(() => {
+                    const inputs = document.querySelectorAll('.sprint-input');
+                    inputs[inputs.length - 1]?.focus();
+                }, 50);
+            },
+
+            updateSprint(id, field, value) {
+                const s = this.sprints.find(s => s.id === id);
+                if (s) { s[field] = value; this.saveToStorage(); if (field === 'duration') this.updateStats(); }
+            },
+
+            updateTitle(id, value) {
+                const capped = value.slice(0, TITLE_LIMIT);
+                const s = this.sprints.find(s => s.id === id);
+                if (!s) return;
+                s.task = capped;
+                this.saveToStorage();
+                const input   = document.getElementById(`input-${id}`);
+                const counter = document.getElementById(`counter-${id}`);
+                if (input && input.value !== capped) input.value = capped;
+                if (counter) {
+                    const used = capped.length;
+                    counter.textContent = used >= 40 ? `${used}/${TITLE_LIMIT}` : '';
+                    counter.className = 'char-counter'
+                        + (used >= 40 ? ' visible' : '')
+                        + (used >= 58 ? ' danger' : used >= 50 ? ' warning' : '');
+                }
+            },
+
+            toggleNotes(id) {
+                this.openNotes.has(id) ? this.openNotes.delete(id) : this.openNotes.add(id);
+                const panel = document.getElementById(`notes-panel-${id}`);
+                const btn   = document.getElementById(`notes-btn-${id}`);
+                const open  = this.openNotes.has(id);
+                if (panel) panel.classList.toggle('open', open);
+                if (btn)   this._refreshNotesBtn(btn, id, open);
+            },
+
+            _refreshNotesBtn(btn, id, open) {
+                const s        = this.sprints.find(s => s.id === id);
+                const hasNotes = s && s.notes && s.notes.trim().length > 0;
+                btn.classList.toggle('has-notes', hasNotes);
+                const label = btn.querySelector('.notes-label');
+                if (label) label.textContent = open ? 'Hide' : (hasNotes ? 'Notes ●' : 'Notes');
+            },
+
+            updateNotes(id, value) {
+                const s = this.sprints.find(s => s.id === id);
+                if (!s) return;
+                s.notes = value;
+                this.saveToStorage();
+                const btn = document.getElementById(`notes-btn-${id}`);
+                if (btn) this._refreshNotesBtn(btn, id, this.openNotes.has(id));
+            },
+
+            toggleComplete(id) {
+                const s = this.sprints.find(s => s.id === id);
+                if (s) { s.completed = !s.completed; this.saveToStorage(); this.render(); }
+            },
+
+            deferSprint(id) {
+                const s = this.sprints.find(s => s.id === id);
+                if (s) { s.deferrals++; this.saveToStorage(); this.render(); }
+            },
+
+            deleteSprint(id) {
+                this.openNotes.delete(id);
+                this.sprints = this.sprints.filter(s => s.id !== id);
+                this.saveToStorage();
+                this.render();
+            },
+
+            // Drag only triggers from the handle element
+            handleDragStart(index, event) {
+                this.draggedIndex = index;
+                const card = event.target.closest('.sprint-item');
+                requestAnimationFrame(() => card && card.classList.add('dragging'));
+                if (navigator.vibrate) navigator.vibrate(10);
+            },
+
+            handleDragEnd(event) {
+                const card = event.target.closest('.sprint-item');
+                if (card) card.classList.remove('dragging');
+                document.querySelectorAll('.sprint-item').forEach(el => el.classList.remove('drag-over'));
+            },
+
+            handleDragOver(event) {
+                event.preventDefault();
+                const item = event.currentTarget;
+                document.querySelectorAll('.sprint-item').forEach(el => {
+                    if (el !== item) el.classList.remove('drag-over');
+                });
+                item.classList.add('drag-over');
+            },
+
+            handleDrop(dropIndex, event) {
+                event.preventDefault();
+                document.querySelectorAll('.sprint-item').forEach(el => el.classList.remove('drag-over'));
+                if (this.draggedIndex !== null && this.draggedIndex !== dropIndex) {
+                    const item = this.sprints.splice(this.draggedIndex, 1)[0];
+                    this.sprints.splice(dropIndex, 0, item);
+                    this.saveToStorage();
+                    this.render();
+                }
+                this.draggedIndex = null;
+            },
+
+            updateStats() {
+                const completed  = this.sprints.filter(s => s.completed).length;
+                const total      = this.sprints.length;
+                const totalHours = this.sprints.reduce((sum, s) => sum + (parseFloat(s.duration) || 0), 0);
+                const flash = (el, val) => {
+                    el.textContent = val;
+                    el.classList.add('flash');
+                    setTimeout(() => el.classList.remove('flash'), 400);
+                };
+                flash(document.getElementById('sprint-stats'), `${completed}/${total}`);
+                flash(document.getElementById('time-stats'),   `${totalHours}h`);
+            },
+
+            toggleAI() { document.getElementById('ai-chat').classList.toggle('hidden'); },
+
+            async sendAIMessage() {
+                const input  = document.getElementById('ai-input');
+                const button = document.getElementById('ai-button');
+                const message = input.value.trim();
+                if (!message) return;
+
+                button.disabled = true;
+                button.classList.add('ai-thinking');
+                button.innerHTML = `<div class="loading-spinner"></div> Thinking...`;
+
+                try {
+                    const response = await this.callClaudeAPI(message);
+                    alert(`AI Response:\n\n${response}`);
+                    input.value = '';
+                } catch (error) {
+                    alert(`Error: ${error.message}\n\nNote: Direct API calls from browser are for demo only. Production requires a proxy server.`);
+                } finally {
+                    button.disabled = false;
+                    button.classList.remove('ai-thinking');
+                    button.innerHTML = `<svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg> Get AI Advice`;
+                }
+            },
+
+            async callClaudeAPI(userMessage) {
+                const sprintSummary = this.sprints.map((s, i) =>
+                    `${i+1}. ${s.task || 'Untitled'} (${s.duration || 'no duration'})${s.deferrals > 0 ? ` [deferred ${s.deferrals}x]` : ''}`
+                ).join('\n');
+
+                const systemPrompt = `You are a calm, grounding AI assistant for an anti-procrastination tool called "Get Things Done". Your role is to help users commit to focused work units called "Sprints" for the next day.
+
+Your tone is:
+- Calm and steady, never pressuring
+- Encouraging without being overly enthusiastic
+- Practical and actionable
+- Respectful of the user's autonomy
+
+Current sprints:
+${sprintSummary || 'No sprints yet'}
+
+Provide brief, helpful responses. If a sprint has been deferred 5+ times, gently ask what might be getting in the way. If there are 7+ sprints, mention that they might be overcommitting, but don't enforce limits.`;
+
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 1000,
+                        system: systemPrompt,
+                        messages: [{ role: "user", content: userMessage }]
+                    })
+                });
+
+                if (!response.ok) throw new Error(`API request failed: ${response.statusText}`);
+                const data = await response.json();
+                return data.content.find(i => i.type === "text")?.text || "I'm here to help you plan your day.";
+            },
+
+            renderSprint(sprint, index) {
+                const hasNotes    = sprint.notes && sprint.notes.trim().length > 0;
+                const notesOpen   = this.openNotes.has(sprint.id);
+                const used        = sprint.task.length;
+                const showCounter = used >= 40;
+                const counterCls  = used >= 58 ? ' danger' : used >= 50 ? ' warning' : '';
+
+                return `
+                <div class="sprint-item${sprint.completed ? ' completed' : ''}"
+                     ondragover="app.handleDragOver(event)"
+                     ondrop="app.handleDrop(${index}, event)">
+
+                    <!-- Top row: handle | checkbox | title | char counter -->
+                    <div class="sprint-top-row">
+                        <svg class="drag-handle"
+                             width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                             draggable="true"
+                             ondragstart="app.handleDragStart(${index}, event)"
+                             ondragend="app.handleDragEnd(event)">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/>
+                        </svg>
+
+                        <input type="checkbox" class="checkbox"
+                               ${sprint.completed ? 'checked' : ''}
+                               onchange="app.toggleComplete(${sprint.id})">
+
+                        <input type="text"
+                               id="input-${sprint.id}"
+                               class="sprint-input${sprint.completed ? ' completed' : ''}"
+                               value="${sprint.task.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+                               placeholder="What needs to get done?"
+                               maxlength="${TITLE_LIMIT}"
+                               draggable="false"
+                               oninput="app.updateTitle(${sprint.id}, this.value)">
+
+                        <span id="counter-${sprint.id}"
+                              class="char-counter${showCounter ? ' visible' : ''}${counterCls}">
+                            ${showCounter ? `${used}/${TITLE_LIMIT}` : ''}
+                        </span>
+                    </div>
+
+                    <!-- Bottom row: hours | badge | → | notes | defer | delete -->
+                    <div class="sprint-bottom-row">
+                        <input type="number"
+                               class="duration-input"
+                               value="${sprint.duration}"
+                               placeholder="Hours"
+                               step="0.5"
+                               draggable="false"
+                               oninput="app.updateSprint(${sprint.id}, 'duration', this.value)">
+                        <span class="hours-label">hours</span>
+                        ${sprint.deferrals > 0 ? `<span class="deferral-badge">Deferred ${sprint.deferrals}x</span>` : ''}
+
+                        <div class="sprint-actions">
+                            <button id="notes-btn-${sprint.id}"
+                                    class="btn-notes-toggle${hasNotes ? ' has-notes' : ''}"
+                                    onclick="app.toggleNotes(${sprint.id})">
+                                <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                                <span class="notes-label">${notesOpen ? 'Hide' : (hasNotes ? 'Notes ●' : 'Notes')}</span>
+                            </button>
+                            <button class="btn btn-defer" onclick="app.deferSprint(${sprint.id})">Defer</button>
+                            <button class="btn btn-delete" onclick="app.deleteSprint(${sprint.id})">Delete</button>
+                        </div>
+                    </div>
+
+                    <!-- Notes panel -->
+                    <div id="notes-panel-${sprint.id}" class="notes-panel${notesOpen ? ' open' : ''}">
+                        <textarea class="notes-textarea"
+                                  placeholder="Context, blockers, subtasks, links… no character limit"
+                                  draggable="false"
+                                  oninput="app.updateNotes(${sprint.id}, this.value)">${sprint.notes || ''}</textarea>
+                    </div>
+                </div>`;
+            },
+
+            render() {
+                const container = document.getElementById('sprints-container');
+                if (this.sprints.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <p>What's the one thing that needs to happen?</p>
+                            <p>Add a Sprint and commit to it.</p>
+                        </div>`;
+                } else {
+                    container.innerHTML = this.sprints.map((s, i) => this.renderSprint(s, i)).join('');
+                }
+                this.updateStats();
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
