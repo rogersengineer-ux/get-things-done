@@ -153,7 +153,6 @@ MIT License - Do whatever you want with this!
 
 ## 🙏 Acknowledgments
 
-- Built with Claude (Anthropic)
 - Inspired by the solo builder community
 - Quotes from various thinkers and makers
 
